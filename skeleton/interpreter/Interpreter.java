@@ -74,7 +74,7 @@ public class Interpreter {
             ex.printStackTrace();
             Interpreter.fatalError("Uncaught parsing error: " + ex, Interpreter.EXIT_PARSING_ERROR);
         }
-        //astRoot.println(System.out);
+        astRoot.println(System.out);
         interpreter = new Interpreter(astRoot);
         interpreter.initMemoryManager(gcType, heapBytes);
         String returnValueAsString = interpreter.executeRoot(astRoot, quandaryArg).toString();
@@ -102,22 +102,39 @@ public class Interpreter {
     }
 
     Object executeRoot(Program astRoot, long arg) {
-        return evaluate(astRoot.getExpr());
+        return evaluate(astRoot.getStatement());
+    }
+
+    Object evaluate(Statement statement) {
+        if (statement == null) {
+            throw new RuntimeException("Unhandled Expr type");
+        }
+
+        if (statement.keyword == null) {
+            throw new RuntimeException("Illegal state: keyword is null");
+        }
+
+        return switch (statement.keyword) {
+            case "", "return" -> evaluate(statement.expr);
+            default -> throw new RuntimeException("Unhandled keyword: " + statement.keyword);
+        };
     }
 
     Object evaluate(Expr expr) {
-        if (expr instanceof ConstExpr) {
-            return ((ConstExpr)expr).getValue();
-        } else if (expr instanceof BinaryExpr) {
-            BinaryExpr binaryExpr = (BinaryExpr)expr;
-            switch (binaryExpr.getOperator()) {
-                case BinaryExpr.PLUS: return (Long)evaluate(binaryExpr.getLeftExpr()) + (Long)evaluate(binaryExpr.getRightExpr());
-                case BinaryExpr.MINUS: return (Long)evaluate(binaryExpr.getLeftExpr()) - (Long)evaluate(binaryExpr.getRightExpr());
-                default: throw new RuntimeException("Unhandled operator");
-            }
-        } else {
-            throw new RuntimeException("Unhandled Expr type");
-        }
+        return switch (expr) {
+            case ConstExpr c -> c.getValue();
+
+            case UnaryExpr u -> -(Long) evaluate(u.expr);
+
+            case BinaryExpr b -> switch (b.getOperator()) {
+                case BinaryExpr.PLUS  -> (Long) evaluate(b.getLeftExpr()) + (Long) evaluate(b.getRightExpr());
+                case BinaryExpr.MINUS -> (Long) evaluate(b.getLeftExpr()) - (Long) evaluate(b.getRightExpr());
+                case BinaryExpr.TIMES -> (Long) evaluate(b.getLeftExpr()) * (Long) evaluate(b.getRightExpr());
+                default -> throw new RuntimeException("Unhandled operator: " + b.getOperator());
+            };
+
+            default -> throw new RuntimeException("Unhandled Expr type: " + expr.getClass().getSimpleName());
+        };
     }
 
 	public static void fatalError(String message, int processReturnCode) {
